@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -214,15 +215,15 @@ private fun Preset(
 ) {
     LazyColumn(
         state = lazyListState,
-        modifier = Modifier.padding(horizontal = 16.dp),
+        modifier = Modifier.padding(horizontal = 12.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         itemsIndexed(
             options.zip(localizedOptions).zip(volumeAdjustments),
         ) { index, (optionAndLocalizedOption, volumeAdjustments) ->
             val option = optionAndLocalizedOption.first
             val localizedOption = optionAndLocalizedOption.second
-            // we want spacing before the first item, so use a spacer rather than LazyColumn's verticalArrangement
-            Spacer(Modifier.height(16.dp))
             PresetCard(
                 index = index,
                 option = option,
@@ -248,78 +249,99 @@ private fun PresetCard(
 ) {
     val gradient = presetGradients.getOrDefault(option, fallbackPresetGradient)
     Card(
-        Modifier
-            .height(120.dp)
-            .padding(4.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(130.dp)
             .clickable { onSelected(index) },
-        colors = CardDefaults.cardColors(containerColor = gradient?.left ?: Color.Unspecified),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+        border = if (isSelected) {
+            androidx.compose.foundation.BorderStroke(2.dp, androidx.compose.material3.MaterialTheme.colorScheme.primary)
+        } else {
+            androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+        },
+        colors = CardDefaults.cardColors(containerColor = gradient.left),
     ) {
         Box(
-            modifier = Modifier.drawBehind {
-                // hacky angled gradient. only works when the angle is close to 90 degrees,
-                // since otherwise rightSideY will be extraordinarily high, leading to most of
-                // the gradient being off the top of the screen
-
-                val angle = Math.toRadians(90 - gradient.angleInDegrees * -1)
-                val x = cos(angle)
-                val y = sin(angle)
-                val slope = y / x
-                val rightSideY = size.width * slope
-
-                drawRect(
-                    brush = Brush.linearGradient(
-                        colors = listOf(gradient.left, gradient.right),
-                        start = Offset(0f, 0f),
-                        end = Offset(size.width, rightSideY.toFloat()),
-                    ),
-                    size = size,
-                )
-            },
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    drawRect(
+                        brush = Brush.linearGradient(
+                            colors = listOf(gradient.left, gradient.right),
+                            start = Offset(0f, 0f),
+                            end = Offset(size.width, size.height),
+                        ),
+                    )
+                    // Ambient dark gradient overlay for crisp legibility
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.15f),
+                                Color.Black.copy(alpha = 0.65f),
+                            ),
+                            startY = 0f,
+                            endY = size.height,
+                        ),
+                    )
+                },
         ) {
-            if (isSelected) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopEnd) {
-                    // fake shadow since using Modifier.shadow with CircleShape doesn't show the shadow inside the
-                    // transparent checkmark
-                    Icon(
-                        modifier = Modifier.blur(2.dp),
-                        tint = Color.Black.copy(alpha = 0.5f),
-                        painter = painterResource(R.drawable.check_circle_24px),
-                        contentDescription = null,
-                    )
-                    Icon(
-                        tint = Color.White,
-                        painter = painterResource(R.drawable.check_circle_24px),
-                        contentDescription = stringResource(R.string.selected),
-                    )
-                }
-            }
-
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(top = 8.dp, bottom = 28.dp, start = 12.dp, end = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
                 ReadOnlyEqualizer(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(85.dp)
-                        .padding(16.dp),
-                    color = Color.White,
+                        .height(75.dp),
+                    color = Color.White.copy(alpha = 0.95f),
                     bands = equalizer.bandHz,
                     values = volumeAdjustments,
                     minValue = equalizer.min,
                     maxValue = equalizer.max,
                     fractionDigits = equalizer.fractionDigits,
                     drawHorizontalGuide = false,
+                    strokeWidthDp = 2.dp,
                 )
             }
+
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp),
+                    contentAlignment = Alignment.TopEnd,
+                ) {
+                    androidx.compose.material3.Surface(
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                        shadowElevation = 4.dp,
+                    ) {
+                        Icon(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .padding(3.dp),
+                            tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary,
+                            painter = painterResource(R.drawable.check_24px),
+                            contentDescription = stringResource(R.string.selected),
+                        )
+                    }
+                }
+            }
+
             Box(
                 Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 contentAlignment = Alignment.BottomStart,
             ) {
                 Text(
                     text = localizedOption,
-                    style = LocalTextStyle.current.copy(
+                    style = androidx.compose.material3.MaterialTheme.typography.titleMedium.copy(
                         color = Color.White,
-                        shadow = Shadow(color = Color.Black, blurRadius = 5f),
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        shadow = Shadow(color = Color.Black.copy(alpha = 0.7f), blurRadius = 8f),
                     ),
                 )
             }

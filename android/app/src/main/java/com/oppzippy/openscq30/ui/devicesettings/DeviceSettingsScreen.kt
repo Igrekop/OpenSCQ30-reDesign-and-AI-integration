@@ -192,8 +192,10 @@ private fun DeviceSettingsNavigationScreen(
             },
         ) {
             composable<Screen.ScreenSelection> {
+                val modelName = translateDeviceModel(connectionStatus.deviceManager.device.model())
                 CategorySelectionScreen(
                     screens = listedScreens,
+                    modelName = modelName,
                     onNavigation = { screen ->
                         navController.navigate(screen) {
                             popUpTo(Screen.ScreenSelection)

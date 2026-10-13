@@ -1,16 +1,24 @@
 package com.oppzippy.openscq30.ui.devicesettings.composables
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,11 +31,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.oppzippy.openscq30.R
+import com.oppzippy.openscq30.ui.theme.CardShapeSmall
 import com.oppzippy.openscq30.ui.theme.OpenSCQ30Theme
+import com.oppzippy.openscq30.ui.theme.PillShape
 import com.oppzippy.openscq30.ui.utils.throttledState
 import java.math.BigDecimal
 import kotlin.math.pow
@@ -42,7 +56,7 @@ fun Equalizer(
     fractionDigits: Short,
     onValueChange: (index: Int, value: Short) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         bands.zip(values).forEachIndexed { index, (hz, value) ->
             EqualizerRow(
                 hz = hz,
@@ -75,21 +89,49 @@ private fun EqualizerRow(
         onValueChange = { onValueChange(it) },
     )
 
-    Column {
-        if (hz < 1000u) {
-            Text(stringResource(R.string.hz, hz.toInt()))
-        } else {
-            Text(
-                stringResource(
-                    R.string.khz,
-                    BigDecimal(hz.toInt()).divide(BigDecimal(1000)).toString(),
-                ),
-            )
-        }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = CardShapeSmall,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+        ),
+    ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // Frequency label badge
+            Surface(
+                shape = PillShape,
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                modifier = Modifier.width(68.dp),
+            ) {
+                Text(
+                    text = if (hz < 1000u) {
+                        stringResource(R.string.hz, hz.toInt())
+                    } else {
+                        stringResource(
+                            R.string.khz,
+                            BigDecimal(hz.toInt()).divide(BigDecimal(1000)).toString(),
+                        )
+                    },
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                    ),
+                )
+            }
+
+            // Interactive track slider
             EqualizerSlider(
                 modifier = Modifier.weight(1f),
                 value = displayedValue,
@@ -98,8 +140,10 @@ private fun EqualizerRow(
                 fractionDigits = fractionDigits,
                 onValueChange = setDisplayedValue,
             )
+
+            // Value badge & manual text input
             EqualizerTextInput(
-                modifier = Modifier.width(56.dp),
+                modifier = Modifier.width(60.dp),
                 hz = hz,
                 value = displayedValue,
                 minValue = minValue,
@@ -130,30 +174,46 @@ private fun EqualizerTextInput(
     } else {
         text
     }
-    BasicTextField(
+
+    Box(
         modifier = modifier
-            .testTag("equalizerInput$hz")
+            .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            .padding(5.dp)
-            .clip(RoundedCornerShape(2.dp)),
-        textStyle = MaterialTheme.typography.bodyMedium.copy(
-            color = MaterialTheme.colorScheme.onSurface,
-        ),
-        cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        singleLine = true,
-        value = reformattedText,
-        onValueChange = {
-            text = it
-            try {
-                val newValue = BigDecimal(it).scaleByPowerOfTen(fractionDigits.toInt()).toShort()
-                if (newValue in minValue..maxValue) {
-                    onValueChange(newValue)
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                RoundedCornerShape(8.dp),
+            )
+            .padding(horizontal = 6.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        BasicTextField(
+            modifier = Modifier
+                .testTag("equalizerInput$hz")
+                .fillMaxWidth(),
+            textStyle = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+            ),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            singleLine = true,
+            value = reformattedText,
+            onValueChange = {
+                text = it
+                try {
+                    val newValue = BigDecimal(it).scaleByPowerOfTen(fractionDigits.toInt()).toShort()
+                    if (newValue in minValue..maxValue) {
+                        onValueChange(newValue)
+                    }
+                } catch (_: NumberFormatException) {
                 }
-            } catch (_: NumberFormatException) {
-            }
-        },
-    )
+            },
+        )
+    }
 }
 
 @Composable
@@ -173,8 +233,12 @@ private fun EqualizerSlider(
             onValueChange((it * divisor).roundToInt().toShort())
         },
         valueRange = (minValue.toFloat() / divisor)..(maxValue.toFloat() / divisor),
-        // The min/max values are not included in the steps number
         steps = (maxValue - minValue) - 1,
+        colors = SliderDefaults.colors(
+            thumbColor = MaterialTheme.colorScheme.primary,
+            activeTrackColor = MaterialTheme.colorScheme.primary,
+            inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+        ),
     )
 }
 
