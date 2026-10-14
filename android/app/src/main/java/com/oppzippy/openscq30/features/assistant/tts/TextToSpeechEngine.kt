@@ -42,10 +42,10 @@ class TextToSpeechEngine @Inject constructor(
         textToSpeech = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 textToSpeech?.let { tts ->
-                    val result = tts.setLanguage(Locale.FRENCH)
+                    val result = tts.setLanguage(Locale.FRANCE)
                     if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                        Log.w(TAG, "French language not supported, using default locale")
-                        tts.language = Locale.getDefault()
+                        Log.w(TAG, "Locale.FRANCE not fully supported, trying Locale.FRENCH")
+                        tts.language = Locale.FRENCH
                     }
 
                     val audioAttributes = AudioAttributes.Builder()
@@ -54,20 +54,40 @@ class TextToSpeechEngine @Inject constructor(
                         .build()
                     tts.setAudioAttributes(audioAttributes)
                     tts.setSpeechRate(preferences.speechRate)
+                    tts.setPitch(1.0f)
 
-                    // Auto-select highest quality French neural/network voice available on device
+                    // Auto-select highest quality Metropolitan France (fr-FR) voice available on device
                     try {
-                        val frenchVoices = tts.voices?.filter {
-                            it.locale.language == Locale.FRENCH.language
-                        }.orEmpty()
+                        val allVoices = tts.voices?.toList().orEmpty()
+                        Log.d(TAG, "Total voices on device: ${allVoices.size}")
 
-                        val bestVoice = frenchVoices.firstOrNull {
-                            it.name.contains("network", ignoreCase = true) || it.name.contains("neural", ignoreCase = true)
-                        } ?: frenchVoices.maxByOrNull { it.quality }
+                        // Strictly filter for Metropolitan France (fr-FR), excluding Canada (-ca-), Belgium (-be-), etc.
+                        val franceVoices = allVoices.filter { voice ->
+                            val loc = voice.locale
+                            val isFrenchLanguage = loc.language.equals("fr", ignoreCase = true)
+                            val isFranceCountry = loc.country.equals("FR", ignoreCase = true) ||
+                                voice.name.contains("fr-fr", ignoreCase = true) ||
+                                voice.name.contains("fr_fr", ignoreCase = true)
+                            val isNotForeignAccent = !voice.name.contains("-ca-", ignoreCase = true) &&
+                                !loc.country.equals("CA", ignoreCase = true) &&
+                                !voice.name.contains("-be-", ignoreCase = true) &&
+                                !loc.country.equals("BE", ignoreCase = true)
 
-                        if (bestVoice != null) {
-                            tts.voice = bestVoice
-                            Log.d(TAG, "Selected best French voice: ${bestVoice.name} (quality: ${bestVoice.quality})")
+                            isFrenchLanguage && isFranceCountry && isNotForeignAccent
+                        }
+
+                        val bestFranceVoice = franceVoices.firstOrNull {
+                            it.name.contains("neural", ignoreCase = true) || it.name.contains("network", ignoreCase = true)
+                        } ?: franceVoices.firstOrNull {
+                            it.name.contains("fr-fr-x-", ignoreCase = true)
+                        } ?: franceVoices.maxByOrNull { it.quality }
+
+                        if (bestFranceVoice != null) {
+                            tts.voice = bestFranceVoice
+                            Log.d(TAG, "Selected Metropolitan France voice: ${bestFranceVoice.name} (quality: ${bestFranceVoice.quality})")
+                        } else {
+                            Log.d(TAG, "No specific fr-FR voice found, relying on tts.setLanguage(Locale.FRANCE)")
+                            tts.language = Locale.FRANCE
                         }
                     } catch (ex: Exception) {
                         Log.w(TAG, "Could not select advanced voice: ${ex.message}")

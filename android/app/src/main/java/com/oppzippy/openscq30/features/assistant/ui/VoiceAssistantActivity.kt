@@ -17,6 +17,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -174,15 +177,29 @@ fun VoiceAssistantOverlayScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.72f))
-            .clickable(onClick = onCancel),
+            .background(Color.Black.copy(alpha = 0.72f)),
         contentAlignment = Alignment.BottomCenter,
     ) {
+        // Scrim outside card: tapping the background dismisses overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onCancel,
+                ),
+        )
+
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 24.dp)
-                .clickable(enabled = false) {}, // Prevent dismiss when tapping card
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { /* Intercept and consume all taps inside the card */ },
+                ),
             shape = CardShapeLarge,
             colors = CardDefaults.cardColors(
                 containerColor = Color(0xFF0C101A),
@@ -201,6 +218,7 @@ fun VoiceAssistantOverlayScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -322,96 +340,153 @@ fun VoiceAssistantOverlayScreen(
                         }
 
                         if (isNativeVoiceEnabled) {
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(10.dp))
                             Text(
-                                text = "PERSONNALITÉ VOCALE :",
+                                text = "PERSONNALITÉ VOCALE (VOIX OFFICIELLE) :",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.8.sp,
                                 ),
-                                color = Color.White.copy(alpha = 0.7f),
+                                color = NeonCyan.copy(alpha = 0.9f),
                             )
-                            Spacer(Modifier.height(6.dp))
-                            Row(
+                            Spacer(Modifier.height(8.dp))
+
+                            val voicesRow1 = listOf(
+                                Triple("Puck", "Puck", "Dynamique • Homme"),
+                                Triple("Aoede", "Aoede", "Chaleureuse • Femme"),
+                            )
+                            val voicesRow2 = listOf(
+                                Triple("Charon", "Charon", "Posé • Homme"),
+                                Triple("Kore", "Kore", "Douce • Femme"),
+                            )
+
+                            Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                val voices = listOf(
-                                    "Puck" to "Puck (Dynamique)",
-                                    "Aoede" to "Aoede (Chaleureuse)",
-                                    "Charon" to "Charon (Posé)",
-                                    "Kore" to "Kore (Douce)",
-                                )
-                                voices.forEach { (voiceId, label) ->
-                                    val isSelected = selectedVoice == voiceId
-                                    Surface(
-                                        shape = PillShape,
-                                        color = if (isSelected) NeonCyan.copy(alpha = 0.25f) else Color(0xFF090D14),
-                                        border = BorderStroke(
-                                            1.dp,
-                                            if (isSelected) NeonCyan else Color(0x33FFFFFF),
-                                        ),
-                                        modifier = Modifier.clickable {
-                                            selectedVoice = voiceId
-                                            onSaveVoice(voiceId)
-                                        },
+                                listOf(voicesRow1, voicesRow2).forEach { voicePair ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     ) {
-                                        Text(
-                                            text = label,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                fontSize = 11.sp,
-                                            ),
-                                            color = if (isSelected) NeonCyan else Color.White.copy(alpha = 0.8f),
-                                        )
+                                        voicePair.forEach { (voiceId, name, subtitle) ->
+                                            val isSelected = selectedVoice == voiceId
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = if (isSelected) NeonCyan.copy(alpha = 0.16f) else Color(0xFF090D14),
+                                                border = BorderStroke(
+                                                    if (isSelected) 1.5.dp else 1.dp,
+                                                    if (isSelected) NeonCyan else Color(0x28FFFFFF),
+                                                ),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clickable {
+                                                        selectedVoice = voiceId
+                                                        onSaveVoice(voiceId)
+                                                    },
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(8.dp)
+                                                            .clip(CircleShape)
+                                                            .background(if (isSelected) NeonCyan else Color.White.copy(alpha = 0.3f)),
+                                                    )
+                                                    Column {
+                                                        Text(
+                                                            text = name,
+                                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                                                fontSize = 12.sp,
+                                                            ),
+                                                            color = if (isSelected) NeonCyan else Color.White,
+                                                        )
+                                                        Text(
+                                                            text = subtitle,
+                                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                                fontSize = 10.sp,
+                                                            ),
+                                                            color = if (isSelected) NeonCyan.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.5f),
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
 
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(12.dp))
 
                         Text(
-                            text = "MODÈLE DE SECOURS :",
+                            text = "MODÈLE LLM :",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.8.sp,
                             ),
                             color = Color.White.copy(alpha = 0.7f),
                         )
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             val models = listOf(
-                                "gemini-3.5-flash-lite" to "3.5 Flash-Lite (Rapide)",
-                                "gemini-3.8-flash" to "3.8 Flash",
+                                Triple("gemini-3.5-flash-lite", "3.5 Flash-Lite", "Rapide & Stable"),
+                                Triple("gemini-3.8-flash", "3.8 Flash", "Avancé"),
                             )
-                            models.forEach { (modelId, label) ->
+                            models.forEach { (modelId, name, subtitle) ->
                                 val isSelected = selectedModel == modelId
                                 Surface(
-                                    shape = PillShape,
-                                    color = if (isSelected) NeonCyan.copy(alpha = 0.25f) else Color(0xFF090D14),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (isSelected) NeonCyan.copy(alpha = 0.16f) else Color(0xFF090D14),
                                     border = BorderStroke(
-                                        1.dp,
-                                        if (isSelected) NeonCyan else Color(0x33FFFFFF),
+                                        if (isSelected) 1.5.dp else 1.dp,
+                                        if (isSelected) NeonCyan else Color(0x28FFFFFF),
                                     ),
-                                    modifier = Modifier.clickable {
-                                        selectedModel = modelId
-                                        onSaveModel(modelId)
-                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            selectedModel = modelId
+                                            onSaveModel(modelId)
+                                        },
                                 ) {
-                                    Text(
-                                        text = label,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            fontSize = 11.sp,
-                                        ),
-                                        color = if (isSelected) NeonCyan else Color.White.copy(alpha = 0.8f),
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isSelected) NeonCyan else Color.White.copy(alpha = 0.3f)),
+                                        )
+                                        Column {
+                                            Text(
+                                                text = name,
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                                    fontSize = 12.sp,
+                                                ),
+                                                color = if (isSelected) NeonCyan else Color.White,
+                                            )
+                                            Text(
+                                                text = subtitle,
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    fontSize = 10.sp,
+                                                ),
+                                                color = if (isSelected) NeonCyan.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.5f),
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }

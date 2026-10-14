@@ -37,6 +37,9 @@ class GeminiLiveVoiceClient @Inject constructor(
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private var webSocket: WebSocket? = null
     private var audioTrack: AudioTrack? = null
+    private var timeoutJob: Job? = null
+    private var hasReceivedAudio = false
+    private var isTurnDone = false
     private var isPlaying = false
 
     /**
@@ -60,6 +63,8 @@ class GeminiLiveVoiceClient @Inject constructor(
         }
 
         stop()
+        hasReceivedAudio = false
+        isTurnDone = false
 
         try {
             initAudioTrack()
@@ -69,19 +74,29 @@ class GeminiLiveVoiceClient @Inject constructor(
             return
         }
 
+        // Watchdog timeout: if Gemini Live takes more than 3.8s without returning audio,
+        // instantly abort and trigger fallback to 3.5-flash-lite + TTS so user is never stuck
+        timeoutJob = scope.launch {
+            kotlinx.coroutines.delay(3800)
+            if (!hasReceivedAudio && !isTurnDone) {
+                Log.w(TAG, "Gemini Live watchdog expired (3.8s) with no audio response. Triggering fallback.")
+                stop()
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    onError("Délai Live dépassé, bascule automatique")
+                }
+            }
+        }
+
         val url = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$apiKey"
         val request = Request.Builder().url(url).build()
-
-        var isSetupDone = false
 
         webSocket = httpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
                 Log.d(TAG, "WebSocket connected, sending setup packet")
-                // 1. Initial Setup Message
                 val voiceName = preferences.geminiVoice
                 val setupPayload = JSONObject().apply {
                     put("setup", JSONObject().apply {
-                        put("model", "models/gemini-2.0-flash-exp")
+                        put("model", "models/gemini-3.8-live")
                         put("generationConfig", JSONObject().apply {
                             put("responseModalities", JSONArray().put("AUDIO"))
                             put("speechConfig", JSONObject().apply {
@@ -107,9 +122,21 @@ class GeminiLiveVoiceClient @Inject constructor(
                 try {
                     val root = JSONObject(text)
 
+                    // Check for server-side error object
+                    if (root.has("error")) {
+                        val errorObj = root.getJSONObject("error")
+                        val errorMessage = errorObj.optString("message", "Erreur serveur Live")
+                        Log.e(TAG, "Gemini Live API returned error: $errorMessage")
+                        timeoutJob?.cancel()
+                        stop()
+                        scope.launch(Dispatchers.Main) {
+                            onError(errorMessage)
+                        }
+                        return
+                    }
+
                     // Check for setupComplete confirmation
                     if (root.has("setupComplete")) {
-                        isSetupDone = true
                         Log.d(TAG, "Setup complete, sending user prompt: $prompt")
 
                         val clientContent = JSONObject().apply {
@@ -152,6 +179,8 @@ class GeminiLiveVoiceClient @Inject constructor(
                                     val inlineData = part.getJSONObject("inlineData")
                                     val base64Data = inlineData.optString("data")
                                     if (base64Data.isNotBlank()) {
+                                        hasReceivedAudio = true
+                                        timeoutJob?.cancel()
                                         val pcmBytes = Base64.decode(base64Data, Base64.DEFAULT)
                                         playAudioChunk(pcmBytes)
                                     }
@@ -163,6 +192,8 @@ class GeminiLiveVoiceClient @Inject constructor(
                         val turnComplete = serverContent.optBoolean("turnComplete", false)
                         if (turnComplete) {
                             Log.d(TAG, "Turn complete from Gemini Live")
+                            isTurnDone = true
+                            timeoutJob?.cancel()
                             scope.launch(Dispatchers.Main) {
                                 onDone()
                             }
@@ -173,15 +204,34 @@ class GeminiLiveVoiceClient @Inject constructor(
                 }
             }
 
+            override fun onClosing(ws: WebSocket, code: Int, reason: String) {
+                Log.w(TAG, "Gemini Live WebSocket closing: code=$code, reason=$reason")
+                if (code != 1000 && !hasReceivedAudio && !isTurnDone) {
+                    timeoutJob?.cancel()
+                    scope.launch(Dispatchers.Main) {
+                        onError("Connexion interrompue: $reason ($code)")
+                    }
+                }
+            }
+
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
-                Log.w(TAG, "Gemini Live WebSocket failure: ${t.message}")
-                scope.launch(Dispatchers.Main) {
-                    onError(t.message ?: "Connexion WebSocket échouée")
+                Log.w(TAG, "Gemini Live WebSocket failure: ${t.message}, http code: ${response?.code}")
+                timeoutJob?.cancel()
+                if (!hasReceivedAudio && !isTurnDone) {
+                    scope.launch(Dispatchers.Main) {
+                        onError(t.message ?: "Échec de connexion Live API")
+                    }
                 }
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 Log.d(TAG, "WebSocket closed: $code $reason")
+                if (code != 1000 && !hasReceivedAudio && !isTurnDone) {
+                    timeoutJob?.cancel()
+                    scope.launch(Dispatchers.Main) {
+                        onError("Connexion fermée: $reason ($code)")
+                    }
+                }
             }
         })
     }
@@ -229,6 +279,9 @@ class GeminiLiveVoiceClient @Inject constructor(
      */
     fun stop() {
         try {
+            timeoutJob?.cancel()
+            timeoutJob = null
+
             webSocket?.close(1000, "Turn cancelled")
             webSocket = null
 
