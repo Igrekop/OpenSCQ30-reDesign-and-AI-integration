@@ -39,6 +39,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -95,17 +97,29 @@ class VoiceAssistantActivity : ComponentActivity() {
                 val state by controller.state.collectAsState()
                 val currentApiKey by preferences.apiKeyFlow.collectAsState()
                 var currentModel by remember { mutableStateOf(preferences.model) }
+                var currentVoice by remember { mutableStateOf(preferences.geminiVoice) }
+                var useNativeVoice by remember { mutableStateOf(preferences.useNativeVoice) }
 
                 VoiceAssistantOverlayScreen(
                     state = state,
                     currentApiKey = currentApiKey,
                     currentModel = currentModel,
+                    currentVoice = currentVoice,
+                    useNativeVoice = useNativeVoice,
                     onSaveApiKey = { newKey ->
                         preferences.apiKey = newKey
                     },
                     onSaveModel = { newModel ->
                         preferences.model = newModel
                         currentModel = newModel
+                    },
+                    onSaveVoice = { newVoice ->
+                        preferences.geminiVoice = newVoice
+                        currentVoice = newVoice
+                    },
+                    onToggleNativeVoice = { enabled ->
+                        preferences.useNativeVoice = enabled
+                        useNativeVoice = enabled
                     },
                     onTriggerMic = {
                         checkPermissionAndStart()
@@ -142,14 +156,20 @@ fun VoiceAssistantOverlayScreen(
     state: AssistantState,
     currentApiKey: String?,
     currentModel: String,
+    currentVoice: String,
+    useNativeVoice: Boolean,
     onSaveApiKey: (String) -> Unit,
     onSaveModel: (String) -> Unit,
+    onSaveVoice: (String) -> Unit,
+    onToggleNativeVoice: (Boolean) -> Unit,
     onTriggerMic: () -> Unit,
     onCancel: () -> Unit,
 ) {
     var showKeyDialog by remember { mutableStateOf(currentApiKey.isNullOrBlank()) }
     var inputKey by remember { mutableStateOf(currentApiKey.orEmpty()) }
     var selectedModel by remember { mutableStateOf(currentModel) }
+    var selectedVoice by remember { mutableStateOf(currentVoice) }
+    var isNativeVoiceEnabled by remember { mutableStateOf(useNativeVoice) }
 
     Box(
         modifier = Modifier
@@ -217,7 +237,7 @@ fun VoiceAssistantOverlayScreen(
                             border = BorderStroke(1.dp, Color(0x3300E5FF)),
                         ) {
                             Text(
-                                text = selectedModel,
+                                text = if (isNativeVoiceEnabled) "⚡ Live • $selectedVoice" else selectedModel,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.SemiBold,
@@ -265,10 +285,95 @@ fun VoiceAssistantOverlayScreen(
                             ),
                             color = NeonCyan,
                         )
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
+
+                        // Live Native Voice Switch
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column {
+                                Text(
+                                    text = "VOIX GEMINI LIVE (NATIVE)",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    ),
+                                    color = Color.White.copy(alpha = 0.9f),
+                                )
+                                Text(
+                                    text = "Voix officielle expressive de l'app Gemini",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Switch(
+                                checked = isNativeVoiceEnabled,
+                                onCheckedChange = {
+                                    isNativeVoiceEnabled = it
+                                    onToggleNativeVoice(it)
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.Black,
+                                    checkedTrackColor = NeonCyan,
+                                ),
+                            )
+                        }
+
+                        if (isNativeVoiceEnabled) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = "PERSONNALITÉ VOCALE :",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                ),
+                                color = Color.White.copy(alpha = 0.7f),
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                val voices = listOf(
+                                    "Puck" to "Puck (Dynamique)",
+                                    "Aoede" to "Aoede (Chaleureuse)",
+                                    "Charon" to "Charon (Posé)",
+                                    "Kore" to "Kore (Douce)",
+                                )
+                                voices.forEach { (voiceId, label) ->
+                                    val isSelected = selectedVoice == voiceId
+                                    Surface(
+                                        shape = PillShape,
+                                        color = if (isSelected) NeonCyan.copy(alpha = 0.25f) else Color(0xFF090D14),
+                                        border = BorderStroke(
+                                            1.dp,
+                                            if (isSelected) NeonCyan else Color(0x33FFFFFF),
+                                        ),
+                                        modifier = Modifier.clickable {
+                                            selectedVoice = voiceId
+                                            onSaveVoice(voiceId)
+                                        },
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                fontSize = 11.sp,
+                                            ),
+                                            color = if (isSelected) NeonCyan else Color.White.copy(alpha = 0.8f),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(10.dp))
 
                         Text(
-                            text = "MODÈLE CHOISI :",
+                            text = "MODÈLE DE SECOURS :",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
@@ -281,8 +386,8 @@ fun VoiceAssistantOverlayScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             val models = listOf(
-                                "gemini-3.8-flash" to "3.8 Flash (Recommandé)",
-                                "gemini-3.5-flash-lite" to "3.5 Flash-Lite",
+                                "gemini-3.5-flash-lite" to "3.5 Flash-Lite (Rapide)",
+                                "gemini-3.8-flash" to "3.8 Flash",
                             )
                             models.forEach { (modelId, label) ->
                                 val isSelected = selectedModel == modelId
@@ -337,6 +442,8 @@ fun VoiceAssistantOverlayScreen(
                             onClick = {
                                 onSaveApiKey(inputKey)
                                 onSaveModel(selectedModel)
+                                onSaveVoice(selectedVoice)
+                                onToggleNativeVoice(isNativeVoiceEnabled)
                                 showKeyDialog = false
                                 onTriggerMic()
                             },

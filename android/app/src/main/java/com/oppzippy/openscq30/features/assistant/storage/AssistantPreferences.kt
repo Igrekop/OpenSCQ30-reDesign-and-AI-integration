@@ -23,8 +23,11 @@ class AssistantPreferences @Inject constructor(
         private const val PREF_MODEL = "assistant_model"
         private const val PREF_SYSTEM_PROMPT = "assistant_system_prompt"
         private const val PREF_SPEECH_RATE = "assistant_speech_rate"
+        private const val PREF_GEMINI_VOICE = "gemini_voice"
+        private const val PREF_USE_NATIVE_VOICE = "gemini_use_native_voice"
 
-        const val DEFAULT_MODEL = "gemini-3.8-flash"
+        const val DEFAULT_MODEL = "gemini-3.5-flash-lite"
+        const val DEFAULT_VOICE = "Puck"
         const val DEFAULT_SYSTEM_PROMPT =
             "Tu es l'assistant vocal intelligent de l'utilisateur dans ses écouteurs Soundcore. " +
                 "Tes réponses sont destinées à être lues à haute voix dans l'oreille. " +
@@ -90,5 +93,17 @@ class AssistantPreferences @Inject constructor(
         get() = securePrefs.getFloat(PREF_SPEECH_RATE, 1.05f)
         set(value) {
             securePrefs.edit { putFloat(PREF_SPEECH_RATE, value) }
+        }
+
+    var geminiVoice: String
+        get() = securePrefs.getString(PREF_GEMINI_VOICE, DEFAULT_VOICE) ?: DEFAULT_VOICE
+        set(value) {
+            securePrefs.edit { putString(PREF_GEMINI_VOICE, value) }
+        }
+
+    var useNativeVoice: Boolean
+        get() = securePrefs.getBoolean(PREF_USE_NATIVE_VOICE, true)
+        set(value) {
+            securePrefs.edit { putBoolean(PREF_USE_NATIVE_VOICE, value) }
         }
 }

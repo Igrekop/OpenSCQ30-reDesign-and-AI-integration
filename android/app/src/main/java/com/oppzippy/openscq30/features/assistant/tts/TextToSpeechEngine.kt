@@ -55,6 +55,24 @@ class TextToSpeechEngine @Inject constructor(
                     tts.setAudioAttributes(audioAttributes)
                     tts.setSpeechRate(preferences.speechRate)
 
+                    // Auto-select highest quality French neural/network voice available on device
+                    try {
+                        val frenchVoices = tts.voices?.filter {
+                            it.locale.language == Locale.FRENCH.language
+                        }.orEmpty()
+
+                        val bestVoice = frenchVoices.firstOrNull {
+                            it.name.contains("network", ignoreCase = true) || it.name.contains("neural", ignoreCase = true)
+                        } ?: frenchVoices.maxByOrNull { it.quality }
+
+                        if (bestVoice != null) {
+                            tts.voice = bestVoice
+                            Log.d(TAG, "Selected best French voice: ${bestVoice.name} (quality: ${bestVoice.quality})")
+                        }
+                    } catch (ex: Exception) {
+                        Log.w(TAG, "Could not select advanced voice: ${ex.message}")
+                    }
+
                     tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                         override fun onStart(utteranceId: String?) {
                             _isSpeakingFlow.value = true

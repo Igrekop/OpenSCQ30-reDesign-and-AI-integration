@@ -16,6 +16,9 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import com.oppzippy.openscq30.features.assistant.live.GeminiLiveVoiceClient
+import com.oppzippy.openscq30.features.assistant.storage.AssistantPreferences
+
 sealed class AssistantState {
     data object Idle : AssistantState()
     data object PreparingAudio : AssistantState()
@@ -31,6 +34,8 @@ class VoiceAssistantController @Inject constructor(
     private val speechToText: AndroidSpeechRecognizerProvider,
     private val llmProvider: GeminiLlmProvider,
     private val textToSpeech: TextToSpeechEngine,
+    private val geminiLiveVoice: GeminiLiveVoiceClient,
+    private val preferences: AssistantPreferences,
 ) {
     companion object {
         private const val TAG = "VoiceAssistantController"
@@ -137,6 +142,40 @@ class VoiceAssistantController @Inject constructor(
     private fun processUserPrompt(prompt: String) {
         _state.value = AssistantState.Thinking(prompt)
 
+        if (preferences.useNativeVoice) {
+            val transcriptAccumulator = StringBuilder()
+            var hasStartedSpeaking = false
+
+            geminiLiveVoice.speakPrompt(
+                prompt = prompt,
+                onTextChunk = { chunk ->
+                    transcriptAccumulator.append(chunk)
+                    if (!hasStartedSpeaking) {
+                        hasStartedSpeaking = true
+                    }
+                    _state.value = AssistantState.Speaking(prompt, transcriptAccumulator.toString())
+                },
+                onDone = {
+                    Log.d(TAG, "Gemini Live voice completed turn")
+                    scope.launch {
+                        delay(350)
+                        if (_state.value is AssistantState.Speaking) {
+                            audioRouter.releaseAudio()
+                            _state.value = AssistantState.Idle
+                        }
+                    }
+                },
+                onError = { error ->
+                    Log.w(TAG, "Gemini Live native audio failed ($error), transparently falling back to Flash-Lite + HD TTS")
+                    processUserPromptFallback(prompt)
+                },
+            )
+        } else {
+            processUserPromptFallback(prompt)
+        }
+    }
+
+    private fun processUserPromptFallback(prompt: String) {
         activeJob = scope.launch {
             val responseAccumulator = StringBuilder()
             var hasStartedSpeaking = false
@@ -184,6 +223,7 @@ class VoiceAssistantController @Inject constructor(
         activeJob = null
         speechToText.stopListening()
         textToSpeech.stop()
+        geminiLiveVoice.stop()
         audioRouter.releaseAudio()
         _state.value = AssistantState.Idle
     }
