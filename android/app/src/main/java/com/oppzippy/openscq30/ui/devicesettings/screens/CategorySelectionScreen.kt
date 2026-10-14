@@ -68,6 +68,7 @@ fun CategorySelectionScreen(
         it.baseRoute is Screen.SettingsCategory && (it.baseRoute as Screen.SettingsCategory).categoryId == "equalizer"
     }
     val otherScreens = screens.filter { it != equalizerScreen }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -83,7 +84,21 @@ fun CategorySelectionScreen(
             )
         }
 
-        // 2. Ambient Sound ANC Mode Quick Switcher
+        // 2. Assistant Vocal Gemini Launcher Card
+        item {
+            AssistantVoiceLauncherCard(
+                onClick = {
+                    context.startActivity(
+                        android.content.Intent(
+                            context,
+                            com.oppzippy.openscq30.features.assistant.ui.VoiceAssistantActivity::class.java,
+                        ),
+                    )
+                },
+            )
+        }
+
+        // 3. Ambient Sound ANC Mode Quick Switcher
         item {
             QuickAncModeBar()
         }
@@ -482,6 +497,93 @@ private fun CategoryCardItem(
                     },
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             )
+        }
+    }
+}
+
+@Composable
+private fun AssistantVoiceLauncherCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = CardShapeLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF0F1424),
+        ),
+        border = BorderStroke(
+            1.dp,
+            Brush.horizontalGradient(
+                listOf(
+                    Color(0xFF82C8FF).copy(alpha = 0.5f),
+                    NeonCyan.copy(alpha = 0.35f),
+                    Color(0x12FFFFFF),
+                ),
+            ),
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x2A00E5FF)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.headphones_24px),
+                        contentDescription = null,
+                        tint = NeonCyan,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+                Column {
+                    Text(
+                        text = "Assistant Vocal Gemini",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        color = Color.White,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "Parlez dans vos écouteurs • Sans écran",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = NeonCyan.copy(alpha = 0.85f),
+                    )
+                }
+            }
+
+            Surface(
+                shape = PillShape,
+                color = NeonCyan,
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = "PARLER",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 0.8.sp,
+                        ),
+                        color = Color.Black,
+                    )
+                }
+            }
         }
     }
 }

@@ -158,6 +158,10 @@ dependencies {
 
     implementation(libs.androidx.work)
 
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.sse)
+    implementation(libs.androidx.security.crypto)
+
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
 
