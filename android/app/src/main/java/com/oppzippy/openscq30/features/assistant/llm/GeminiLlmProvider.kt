@@ -77,22 +77,39 @@ class GeminiLlmProvider @Inject constructor(
             }
         }.toString()
 
-        val url = "https://generativelanguage.googleapis.com/v1beta/models/$effectiveModel:streamGenerateContent?alt=sse&key=$apiKey"
+        var modelToUse = effectiveModel
+        var url = "https://generativelanguage.googleapis.com/v1beta/models/$modelToUse:streamGenerateContent?alt=sse&key=$apiKey"
 
-        val request = Request.Builder()
+        var request = Request.Builder()
             .url(url)
             .post(requestBodyJson.toRequestBody(JSON_MEDIA_TYPE))
             .header("Content-Type", "application/json")
             .build()
 
         try {
-            val response = httpClient.newCall(request).execute()
+            var response = httpClient.newCall(request).execute()
+
+            // Auto-fallback if the specified model is retired or not found on this API tier
+            if (response.code == 404 && modelToUse != "gemini-1.5-flash") {
+                Log.w(TAG, "Model $modelToUse returned 404, auto-falling back to gemini-1.5-flash")
+                modelToUse = "gemini-1.5-flash"
+                preferences.model = "gemini-1.5-flash"
+                url = "https://generativelanguage.googleapis.com/v1beta/models/$modelToUse:streamGenerateContent?alt=sse&key=$apiKey"
+                request = Request.Builder()
+                    .url(url)
+                    .post(requestBodyJson.toRequestBody(JSON_MEDIA_TYPE))
+                    .header("Content-Type", "application/json")
+                    .build()
+                response = httpClient.newCall(request).execute()
+            }
+
             if (!response.isSuccessful) {
                 val errorBody = response.body?.string().orEmpty()
                 Log.e(TAG, "Gemini API error ${response.code}: $errorBody")
                 val userFriendlyMessage = when (response.code) {
                     400 -> "Clé API Gemini invalide ou requête incorrecte."
                     403 -> "Accès refusé à l'API Gemini. Vérifiez vos autorisations."
+                    404 -> "Modèle Gemini indisponible (404). Vérifiez le modèle dans les réglages."
                     429 -> "Limite de requêtes atteinte pour votre clé Gemini. Réessayez dans un instant."
                     else -> "Erreur de connexion au serveur Gemini (${response.code})."
                 }

@@ -281,9 +281,9 @@ fun VoiceAssistantOverlayScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             val models = listOf(
-                                "gemini-2.0-flash" to "2.0 Flash",
-                                "gemini-1.5-flash" to "1.5 Flash",
+                                "gemini-1.5-flash" to "1.5 Flash (Conseillé)",
                                 "gemini-1.5-pro" to "1.5 Pro",
+                                "gemini-2.0-flash-exp" to "2.0 Flash Exp",
                             )
                             models.forEach { (modelId, label) ->
                                 val isSelected = selectedModel == modelId

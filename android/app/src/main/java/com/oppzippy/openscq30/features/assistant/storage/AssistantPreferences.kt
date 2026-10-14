@@ -24,7 +24,7 @@ class AssistantPreferences @Inject constructor(
         private const val PREF_SYSTEM_PROMPT = "assistant_system_prompt"
         private const val PREF_SPEECH_RATE = "assistant_speech_rate"
 
-        const val DEFAULT_MODEL = "gemini-2.0-flash"
+        const val DEFAULT_MODEL = "gemini-1.5-flash"
         const val DEFAULT_SYSTEM_PROMPT =
             "Tu es l'assistant vocal intelligent de l'utilisateur dans ses écouteurs Soundcore. " +
                 "Tes réponses sont destinées à être lues à haute voix dans l'oreille. " +
@@ -69,7 +69,13 @@ class AssistantPreferences @Inject constructor(
         }
 
     var model: String
-        get() = securePrefs.getString(PREF_MODEL, DEFAULT_MODEL) ?: DEFAULT_MODEL
+        get() {
+            val saved = securePrefs.getString(PREF_MODEL, null)
+            if (saved == null || saved == "gemini-2.0-flash") {
+                return DEFAULT_MODEL
+            }
+            return saved
+        }
         set(value) {
             securePrefs.edit { putString(PREF_MODEL, value) }
         }
