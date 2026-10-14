@@ -90,10 +90,11 @@ class GeminiLlmProvider @Inject constructor(
             var response = httpClient.newCall(request).execute()
 
             // Auto-fallback if the specified model is retired or not found on this API tier
-            if (response.code == 404 && modelToUse != "gemini-1.5-flash") {
-                Log.w(TAG, "Model $modelToUse returned 404, auto-falling back to gemini-1.5-flash")
-                modelToUse = "gemini-1.5-flash"
-                preferences.model = "gemini-1.5-flash"
+            if (response.code == 404) {
+                val fallbackModel = if (modelToUse != "gemini-3.8-flash") "gemini-3.8-flash" else "gemini-3.5-flash-lite"
+                Log.w(TAG, "Model $modelToUse returned 404, auto-falling back to $fallbackModel")
+                modelToUse = fallbackModel
+                preferences.model = fallbackModel
                 url = "https://generativelanguage.googleapis.com/v1beta/models/$modelToUse:streamGenerateContent?alt=sse&key=$apiKey"
                 request = Request.Builder()
                     .url(url)
