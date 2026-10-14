@@ -94,12 +94,18 @@ class VoiceAssistantActivity : ComponentActivity() {
             OpenSCQ30Theme(dynamicColor = false) {
                 val state by controller.state.collectAsState()
                 val currentApiKey by preferences.apiKeyFlow.collectAsState()
+                var currentModel by remember { mutableStateOf(preferences.model) }
 
                 VoiceAssistantOverlayScreen(
                     state = state,
                     currentApiKey = currentApiKey,
+                    currentModel = currentModel,
                     onSaveApiKey = { newKey ->
                         preferences.apiKey = newKey
+                    },
+                    onSaveModel = { newModel ->
+                        preferences.model = newModel
+                        currentModel = newModel
                     },
                     onTriggerMic = {
                         checkPermissionAndStart()
@@ -135,12 +141,15 @@ class VoiceAssistantActivity : ComponentActivity() {
 fun VoiceAssistantOverlayScreen(
     state: AssistantState,
     currentApiKey: String?,
+    currentModel: String,
     onSaveApiKey: (String) -> Unit,
+    onSaveModel: (String) -> Unit,
     onTriggerMic: () -> Unit,
     onCancel: () -> Unit,
 ) {
     var showKeyDialog by remember { mutableStateOf(currentApiKey.isNullOrBlank()) }
     var inputKey by remember { mutableStateOf(currentApiKey.orEmpty()) }
+    var selectedModel by remember { mutableStateOf(currentModel) }
 
     Box(
         modifier = Modifier
@@ -191,7 +200,7 @@ fun VoiceAssistantOverlayScreen(
                             border = BorderStroke(1.dp, Color(0x4400E5FF)),
                         ) {
                             Text(
-                                text = "SOUNDCORE AI ASSISTANT",
+                                text = "SOUNDCORE AI",
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.ExtraBold,
@@ -201,13 +210,29 @@ fun VoiceAssistantOverlayScreen(
                                 color = NeonCyan,
                             )
                         }
+
+                        Surface(
+                            shape = PillShape,
+                            color = Color(0x1800E5FF),
+                            border = BorderStroke(1.dp, Color(0x3300E5FF)),
+                        ) {
+                            Text(
+                                text = selectedModel,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 10.sp,
+                                ),
+                                color = Color(0xFF82C8FF),
+                            )
+                        }
                     }
 
                     Row {
                         IconButton(onClick = { showKeyDialog = !showKeyDialog }) {
                             Icon(
                                 painter = painterResource(R.drawable.settings_24px),
-                                contentDescription = "Réglages Clé API",
+                                contentDescription = "Réglages Clé API & Modèle",
                                 tint = if (currentApiKey.isNullOrBlank()) Color(0xFFFF5252) else NeonCyan,
                             )
                         }
@@ -233,20 +258,67 @@ fun VoiceAssistantOverlayScreen(
                             .padding(14.dp),
                     ) {
                         Text(
-                            text = "CONFIGURATION CLÉ GEMINI",
+                            text = "CONFIGURATION GEMINI",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp,
                             ),
                             color = NeonCyan,
                         )
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(8.dp))
+
                         Text(
-                            text = "Entrez votre clé API Google AI Studio pour activer la synthèse vocale Gemini :",
+                            text = "MODÈLE CHOISI :",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                            color = Color.White.copy(alpha = 0.7f),
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            val models = listOf(
+                                "gemini-2.0-flash" to "2.0 Flash",
+                                "gemini-1.5-flash" to "1.5 Flash",
+                                "gemini-1.5-pro" to "1.5 Pro",
+                            )
+                            models.forEach { (modelId, label) ->
+                                val isSelected = selectedModel == modelId
+                                Surface(
+                                    shape = PillShape,
+                                    color = if (isSelected) NeonCyan.copy(alpha = 0.25f) else Color(0xFF090D14),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isSelected) NeonCyan else Color(0x33FFFFFF),
+                                    ),
+                                    modifier = Modifier.clickable {
+                                        selectedModel = modelId
+                                        onSaveModel(modelId)
+                                    },
+                                ) {
+                                    Text(
+                                        text = label,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            fontSize = 11.sp,
+                                        ),
+                                        color = if (isSelected) NeonCyan else Color.White.copy(alpha = 0.8f),
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = "Clé d'API Google AI Studio :",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(6.dp))
                         OutlinedTextField(
                             value = inputKey,
                             onValueChange = { inputKey = it },
@@ -265,6 +337,7 @@ fun VoiceAssistantOverlayScreen(
                         Button(
                             onClick = {
                                 onSaveApiKey(inputKey)
+                                onSaveModel(selectedModel)
                                 showKeyDialog = false
                                 onTriggerMic()
                             },
@@ -296,8 +369,8 @@ fun VoiceAssistantOverlayScreen(
                     AssistantState.Idle -> "Appuyez sur le micro pour parler"
                     AssistantState.PreparingAudio -> "Connexion au micro Bluetooth..."
                     is AssistantState.Listening -> "Écoute en cours..."
-                    is AssistantState.Thinking -> "Gemini réfléchit..."
-                    is AssistantState.Speaking -> "Gemini répond dans l'oreille"
+                    is AssistantState.Thinking -> "$selectedModel réfléchit..."
+                    is AssistantState.Speaking -> "$selectedModel répond dans l'oreille"
                     is AssistantState.Error -> state.message
                 }
 

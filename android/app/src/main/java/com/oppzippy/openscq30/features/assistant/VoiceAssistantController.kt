@@ -57,6 +57,8 @@ class VoiceAssistantController @Inject constructor(
         }
     }
 
+    private var lastPartialText: String = ""
+
     /**
      * Start voice interaction: routes audio to Bluetooth SCO and begins listening.
      * If assistant is currently speaking, calling this acts as an instant barge-in / interruption.
@@ -65,34 +67,42 @@ class VoiceAssistantController @Inject constructor(
         cancelCurrentSession()
 
         _state.value = AssistantState.PreparingAudio
+        lastPartialText = ""
 
-        // 1. Acquire audio focus so music ducks or pauses
-        audioRouter.requestAudioFocus(onFocusLoss = {
-            cancelCurrentSession()
-        })
+        activeJob = scope.launch {
+            // 1. Acquire audio focus so music ducks or pauses
+            audioRouter.requestAudioFocus(onFocusLoss = {
+                cancelCurrentSession()
+            })
 
-        // 2. Route input/output to Bluetooth headset (SCO)
-        audioRouter.routeToBluetoothSco()
+            // 2. Route input/output to Bluetooth headset (SCO)
+            audioRouter.routeToBluetoothSco()
 
-        // 3. Start speech recognition
-        speechToText.startListening(
-            language = "fr-FR",
-            onEvent = { event ->
-                handleSpeechEvent(event)
-            },
-        )
+            // Short stabilization delay so audio driver doesn't drop the initial speech buffer
+            delay(200)
+
+            // 3. Start speech recognition
+            speechToText.startListening(
+                language = "fr-FR",
+                onEvent = { event ->
+                    handleSpeechEvent(event)
+                },
+            )
+        }
     }
 
     private fun handleSpeechEvent(event: SpeechRecognitionEvent) {
         when (event) {
             is SpeechRecognitionEvent.ReadyForSpeech -> {
+                lastPartialText = ""
                 _state.value = AssistantState.Listening("")
             }
             is SpeechRecognitionEvent.PartialResult -> {
+                lastPartialText = event.text
                 _state.value = AssistantState.Listening(event.text)
             }
             is SpeechRecognitionEvent.FinalResult -> {
-                val prompt = event.text.trim()
+                val prompt = event.text.trim().ifBlank { lastPartialText.trim() }
                 if (prompt.isBlank()) {
                     Log.d(TAG, "Empty speech recognized, returning to idle")
                     cancelCurrentSession()
@@ -101,14 +111,24 @@ class VoiceAssistantController @Inject constructor(
                 }
             }
             is SpeechRecognitionEvent.Error -> {
-                Log.w(TAG, "STT error: ${event.message}")
-                if (_state.value is AssistantState.Listening || _state.value is AssistantState.PreparingAudio) {
+                Log.w(TAG, "STT error: ${event.message} (code ${event.errorCode})")
+                // If partial text was captured before the error/timeout, process it!
+                if (lastPartialText.isNotBlank()) {
+                    Log.d(TAG, "Recovering from partial text: $lastPartialText")
+                    processUserPrompt(lastPartialText.trim())
+                    return
+                }
+
+                // If error is timeout or no match (silence), smoothly return to idle without annoying voice error
+                if (event.errorCode == 7 /* ERROR_NO_MATCH */ || event.errorCode == 6 /* ERROR_SPEECH_TIMEOUT */) {
+                    _state.value = AssistantState.Idle
+                    audioRouter.releaseAudio()
+                } else if (_state.value is AssistantState.Listening || _state.value is AssistantState.PreparingAudio) {
                     speakAndFail(event.message)
                 }
             }
             SpeechRecognitionEvent.EndOfSpeech -> {
-                // User stopped speaking, wait for final result
-                val currentText = (_state.value as? AssistantState.Listening)?.partialText.orEmpty()
+                val currentText = (_state.value as? AssistantState.Listening)?.partialText.orEmpty().ifBlank { lastPartialText }
                 _state.value = AssistantState.Thinking(currentText)
             }
         }

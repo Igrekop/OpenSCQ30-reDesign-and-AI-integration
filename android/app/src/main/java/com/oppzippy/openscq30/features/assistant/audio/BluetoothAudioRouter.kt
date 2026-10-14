@@ -33,14 +33,12 @@ class BluetoothAudioRouter @Inject constructor(
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                 .build()
 
-            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
                 .setAudioAttributes(playbackAttributes)
-                .setAcceptsDelayedFocusGain(false)
+                .setAcceptsDelayedFocusGain(true)
                 .setOnAudioFocusChangeListener { focusChange ->
-                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS ||
-                        focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
-                    ) {
-                        Log.d(TAG, "Audio focus lost: $focusChange")
+                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+                        Log.d(TAG, "Audio focus lost permanently: $focusChange")
                         onFocusLoss()
                     }
                 }
