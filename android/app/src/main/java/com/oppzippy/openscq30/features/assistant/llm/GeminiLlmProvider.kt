@@ -53,7 +53,7 @@ class GeminiLlmProvider @Inject constructor(
         }
 
         val effectiveModel = preferences.model
-        val effectiveSystemPrompt = systemPrompt ?: preferences.systemPrompt
+        val effectiveSystemPrompt = systemPrompt ?: preferences.getEffectiveSystemPrompt()
 
         val requestBodyJson = buildJsonObject {
             putJsonObject("system_instruction") {

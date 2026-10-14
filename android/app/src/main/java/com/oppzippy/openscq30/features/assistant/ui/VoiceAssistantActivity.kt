@@ -313,7 +313,7 @@ fun VoiceAssistantOverlayScreen(
                         ) {
                             Column {
                                 Text(
-                                    text = "VOIX GEMINI LIVE (NATIVE)",
+                                    text = "VOIX EXPRESSIVES / PERSONNALITÉS",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
@@ -321,7 +321,7 @@ fun VoiceAssistantOverlayScreen(
                                     color = Color.White.copy(alpha = 0.9f),
                                 )
                                 Text(
-                                    text = "Voix officielle expressive de l'app Gemini",
+                                    text = "Personnalités vocales optimisées pour vos écouteurs",
                                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -342,7 +342,7 @@ fun VoiceAssistantOverlayScreen(
                         if (isNativeVoiceEnabled) {
                             Spacer(Modifier.height(10.dp))
                             Text(
-                                text = "PERSONNALITÉ VOCALE (VOIX OFFICIELLE) :",
+                                text = "PERSONNALITÉ VOCALE DU CASQUE :",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,

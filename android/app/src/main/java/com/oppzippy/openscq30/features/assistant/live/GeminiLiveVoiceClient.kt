@@ -66,23 +66,15 @@ class GeminiLiveVoiceClient @Inject constructor(
         hasReceivedAudio = false
         isTurnDone = false
 
-        try {
-            initAudioTrack()
-        } catch (ex: Exception) {
-            Log.e(TAG, "Failed to initialize AudioTrack for 24kHz PCM", ex)
-            onError("Erreur initialisation audio")
-            return
-        }
-
-        // Watchdog timeout: if Gemini Live takes more than 3.8s without returning audio,
+        // Watchdog timeout: if Gemini Live takes more than 1.8s without returning audio,
         // instantly abort and trigger fallback to 3.5-flash-lite + TTS so user is never stuck
         timeoutJob = scope.launch {
-            kotlinx.coroutines.delay(3800)
+            kotlinx.coroutines.delay(1800)
             if (!hasReceivedAudio && !isTurnDone) {
-                Log.w(TAG, "Gemini Live watchdog expired (3.8s) with no audio response. Triggering fallback.")
+                Log.w(TAG, "Gemini Live watchdog expired (1.8s) with no audio response. Triggering fallback.")
                 stop()
                 kotlinx.coroutines.withContext(Dispatchers.Main) {
-                    onError("Délai Live dépassé, bascule automatique")
+                    onError("Délai Live dépassé, bascule voix locale")
                 }
             }
         }
@@ -96,7 +88,7 @@ class GeminiLiveVoiceClient @Inject constructor(
                 val voiceName = preferences.geminiVoice
                 val setupPayload = JSONObject().apply {
                     put("setup", JSONObject().apply {
-                        put("model", "models/gemini-3.8-live")
+                        put("model", "models/gemini-2.0-flash-exp")
                         put("generationConfig", JSONObject().apply {
                             put("responseModalities", JSONArray().put("AUDIO"))
                             put("speechConfig", JSONObject().apply {
@@ -266,6 +258,14 @@ class GeminiLiveVoiceClient @Inject constructor(
     }
 
     private fun playAudioChunk(pcmBytes: ByteArray) {
+        if (audioTrack == null) {
+            try {
+                initAudioTrack()
+            } catch (ex: Exception) {
+                Log.e(TAG, "Failed to lazily init AudioTrack", ex)
+                return
+            }
+        }
         audioTrack?.let { track ->
             if (track.playState != AudioTrack.PLAYSTATE_PLAYING) {
                 track.play()

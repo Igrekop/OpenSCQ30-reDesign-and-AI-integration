@@ -142,7 +142,10 @@ class VoiceAssistantController @Inject constructor(
     private fun processUserPrompt(prompt: String) {
         _state.value = AssistantState.Thinking(prompt)
 
-        if (preferences.useNativeVoice) {
+        // Gemini Live WebSocket is only supported by Google on 2.0 Live experimental models.
+        // On 3.5 and 3.8, ultra-fast streaming + HD local persona voice is used directly, avoiding any 503/timeout hangs.
+        val isLiveModel = preferences.model.contains("gemini-2.0") || preferences.model.contains("live")
+        if (preferences.useNativeVoice && isLiveModel) {
             val transcriptAccumulator = StringBuilder()
             var hasStartedSpeaking = false
 

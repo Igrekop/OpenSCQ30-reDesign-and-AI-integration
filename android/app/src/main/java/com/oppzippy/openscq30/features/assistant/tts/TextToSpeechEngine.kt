@@ -53,45 +53,8 @@ class TextToSpeechEngine @Inject constructor(
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                         .build()
                     tts.setAudioAttributes(audioAttributes)
-                    tts.setSpeechRate(preferences.speechRate)
-                    tts.setPitch(1.0f)
 
-                    // Auto-select highest quality Metropolitan France (fr-FR) voice available on device
-                    try {
-                        val allVoices = tts.voices?.toList().orEmpty()
-                        Log.d(TAG, "Total voices on device: ${allVoices.size}")
-
-                        // Strictly filter for Metropolitan France (fr-FR), excluding Canada (-ca-), Belgium (-be-), etc.
-                        val franceVoices = allVoices.filter { voice ->
-                            val loc = voice.locale
-                            val isFrenchLanguage = loc.language.equals("fr", ignoreCase = true)
-                            val isFranceCountry = loc.country.equals("FR", ignoreCase = true) ||
-                                voice.name.contains("fr-fr", ignoreCase = true) ||
-                                voice.name.contains("fr_fr", ignoreCase = true)
-                            val isNotForeignAccent = !voice.name.contains("-ca-", ignoreCase = true) &&
-                                !loc.country.equals("CA", ignoreCase = true) &&
-                                !voice.name.contains("-be-", ignoreCase = true) &&
-                                !loc.country.equals("BE", ignoreCase = true)
-
-                            isFrenchLanguage && isFranceCountry && isNotForeignAccent
-                        }
-
-                        val bestFranceVoice = franceVoices.firstOrNull {
-                            it.name.contains("neural", ignoreCase = true) || it.name.contains("network", ignoreCase = true)
-                        } ?: franceVoices.firstOrNull {
-                            it.name.contains("fr-fr-x-", ignoreCase = true)
-                        } ?: franceVoices.maxByOrNull { it.quality }
-
-                        if (bestFranceVoice != null) {
-                            tts.voice = bestFranceVoice
-                            Log.d(TAG, "Selected Metropolitan France voice: ${bestFranceVoice.name} (quality: ${bestFranceVoice.quality})")
-                        } else {
-                            Log.d(TAG, "No specific fr-FR voice found, relying on tts.setLanguage(Locale.FRANCE)")
-                            tts.language = Locale.FRANCE
-                        }
-                    } catch (ex: Exception) {
-                        Log.w(TAG, "Could not select advanced voice: ${ex.message}")
-                    }
+                    applyPersonalityVoice()
 
                     tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                         override fun onStart(utteranceId: String?) {
@@ -123,6 +86,112 @@ class TextToSpeechEngine @Inject constructor(
             } else {
                 Log.e(TAG, "TextToSpeech initialization failed with status $status")
             }
+        }
+    }
+
+    /**
+     * Apply distinct vocal persona (Puck, Aoede, Charon, Kore) mapped to local offline Metropolitan France voices.
+     * Strictly avoids network voices that cause buffer size=0 errors on Android Bluetooth SCO.
+     */
+    fun applyPersonalityVoice() {
+        val tts = textToSpeech ?: return
+        val selectedPersonality = preferences.geminiVoice
+
+        try {
+            tts.language = Locale.FRANCE
+        } catch (_: Exception) {}
+
+        try {
+            val allVoices = tts.voices?.toList().orEmpty()
+            Log.d(TAG, "Available TTS voices count: ${allVoices.size}")
+
+            // Strictly filter for Metropolitan France (fr-FR), excluding Canada (-ca-), Belgium (-be-), etc.
+            val franceVoices = allVoices.filter { voice ->
+                val loc = voice.locale
+                val isFrenchLanguage = loc.language.equals("fr", ignoreCase = true)
+                val isFranceCountry = loc.country.equals("FR", ignoreCase = true) ||
+                    voice.name.contains("fr-fr", ignoreCase = true) ||
+                    voice.name.contains("fr_fr", ignoreCase = true)
+                val isNotForeignAccent = !voice.name.contains("-ca-", ignoreCase = true) &&
+                    !loc.country.equals("CA", ignoreCase = true) &&
+                    !voice.name.contains("-be-", ignoreCase = true) &&
+                    !loc.country.equals("BE", ignoreCase = true)
+
+                isFrenchLanguage && isFranceCountry && isNotForeignAccent
+            }
+
+            // Strictly prioritize local offline voices to avoid network buffer errors (size=0)
+            val offlineFranceVoices = franceVoices.filter { !it.isNetworkConnectionRequired }
+            val candidateVoices = if (offlineFranceVoices.isNotEmpty()) offlineFranceVoices else franceVoices
+
+            val maleVoices = candidateVoices.filter {
+                it.name.contains("-fra-", ignoreCase = true) ||
+                    it.name.contains("-frc-", ignoreCase = true) ||
+                    it.name.contains("male", ignoreCase = true)
+            }
+            val femaleVoices = candidateVoices.filter {
+                it.name.contains("-frb-", ignoreCase = true) ||
+                    it.name.contains("-frd-", ignoreCase = true) ||
+                    it.name.contains("-fre-", ignoreCase = true) ||
+                    it.name.contains("female", ignoreCase = true)
+            }
+
+            var chosenVoice = candidateVoices.firstOrNull()
+            var pitch = 1.0f
+            var rateMultiplier = 1.0f
+
+            when (selectedPersonality) {
+                "Puck" -> {
+                    // Puck: Homme vif, dynamique et énergique
+                    chosenVoice = maleVoices.firstOrNull { it.name.contains("-fra-", ignoreCase = true) }
+                        ?: maleVoices.firstOrNull()
+                        ?: candidateVoices.firstOrNull()
+                    pitch = 1.02f
+                    rateMultiplier = 1.14f
+                }
+                "Aoede" -> {
+                    // Aoede: Femme claire, dynamique et agréable
+                    chosenVoice = femaleVoices.firstOrNull { it.name.contains("-frb-", ignoreCase = true) }
+                        ?: femaleVoices.firstOrNull()
+                        ?: candidateVoices.firstOrNull()
+                    pitch = 1.12f
+                    rateMultiplier = 1.08f
+                }
+                "Charon" -> {
+                    // Charon: Homme grave, calme et posé
+                    chosenVoice = maleVoices.firstOrNull { it.name.contains("-frc-", ignoreCase = true) }
+                        ?: maleVoices.firstOrNull()
+                        ?: candidateVoices.firstOrNull()
+                    pitch = 0.78f
+                    rateMultiplier = 0.92f
+                }
+                "Kore" -> {
+                    // Kore: Femme douce, chaleureuse et bienveillante
+                    chosenVoice = femaleVoices.firstOrNull { it.name.contains("-frd-", ignoreCase = true) }
+                        ?: femaleVoices.firstOrNull { it.name.contains("-fre-", ignoreCase = true) }
+                        ?: femaleVoices.firstOrNull()
+                        ?: candidateVoices.firstOrNull()
+                    pitch = 1.22f
+                    rateMultiplier = 0.96f
+                }
+            }
+
+            if (chosenVoice != null) {
+                tts.voice = chosenVoice
+                Log.d(TAG, "Selected persona voice '$selectedPersonality': ${chosenVoice.name} (offline: ${!chosenVoice.isNetworkConnectionRequired})")
+            } else {
+                tts.language = Locale.FRANCE
+                Log.d(TAG, "Fallback to default Locale.FRANCE for persona '$selectedPersonality'")
+            }
+
+            val effectiveRate = (preferences.speechRate * rateMultiplier).coerceIn(0.6f, 2.0f)
+            tts.setSpeechRate(effectiveRate)
+            tts.setPitch(pitch)
+        } catch (ex: Exception) {
+            Log.w(TAG, "Failed to apply voice personality: ${ex.message}")
+            tts.language = Locale.FRANCE
+            tts.setSpeechRate(preferences.speechRate)
+            tts.setPitch(1.0f)
         }
     }
 
@@ -180,6 +249,8 @@ class TextToSpeechEngine @Inject constructor(
             return
         }
 
+        applyPersonalityVoice()
+
         val utteranceId = UUID.randomUUID().toString()
         synchronized(pendingUtteranceIds) {
             pendingUtteranceIds.add(utteranceId)
@@ -189,7 +260,6 @@ class TextToSpeechEngine @Inject constructor(
             putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
         }
 
-        textToSpeech?.setSpeechRate(preferences.speechRate)
         textToSpeech?.speak(sentence, TextToSpeech.QUEUE_ADD, params, utteranceId)
     }
 

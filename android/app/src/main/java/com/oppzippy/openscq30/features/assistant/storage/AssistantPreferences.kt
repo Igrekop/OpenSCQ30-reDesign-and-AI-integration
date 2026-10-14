@@ -106,4 +106,16 @@ class AssistantPreferences @Inject constructor(
         set(value) {
             securePrefs.edit { putBoolean(PREF_USE_NATIVE_VOICE, value) }
         }
+
+    fun getEffectiveSystemPrompt(): String {
+        val base = systemPrompt
+        val personaStyle = when (geminiVoice) {
+            "Puck" -> " Ton style d'expression est direct, vif, dynamique et énergique."
+            "Aoede" -> " Ton style d'expression est clair, élégant, expressif et dynamique."
+            "Charon" -> " Ton style d'expression est calme, posé, réfléchi, grave et mesuré."
+            "Kore" -> " Ton style d'expression est doux, chaleureux, bienveillant et apaisant."
+            else -> ""
+        }
+        return base + personaStyle
+    }
 }
